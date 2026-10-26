@@ -167,19 +167,44 @@ def _set_origin_xyz(parent: ET.Element, xyz: list[float]) -> None:
 
 def _update_box_size(link: ET.Element, x_size: float, y_size: float, z_size: float) -> None:
     size_text = f"{x_size:.10g} {y_size:.10g} {z_size:.10g}"
-    for section_name in ("visual", "collision"):
-        section = link.find(section_name)
-        if section is None:
-            continue
 
-        geometry = section.find("geometry")
-        if geometry is None:
-            continue
+    collision = link.find("collision")
+    if collision is not None:
+        geometry = collision.find("geometry")
+        if geometry is not None:
+            box = geometry.find("box")
+            if box is None:
+                box = ET.SubElement(geometry, "box")
+            box.set("size", size_text)
 
-        box = geometry.find("box")
-        if box is None:
-            box = ET.SubElement(geometry, "box")
-        box.set("size", size_text)
+    _update_visual_box_size(link, size_text)
+
+
+def _update_visual_box_size(link: ET.Element, size_text: str) -> None:
+    visuals = [visual for visual in link.findall("visual") if visual.find("geometry") is not None]
+    if not visuals:
+        return
+
+    for visual in visuals:
+        box = visual.find("geometry/box")
+        if box is not None:
+            box.set("size", size_text)
+            return
+
+    # URDF geometry admits a single shape, so the box goes in its own visual
+    # instead of being appended next to an existing mesh.
+    source_visual = visuals[0]
+    box_visual = copy.deepcopy(source_visual)
+    source_name = source_visual.get("name")
+    if source_name:
+        box_visual.set("name", f"{source_name}_Box")
+
+    geometry = box_visual.find("geometry")
+    for child in list(geometry):
+        geometry.remove(child)
+    ET.SubElement(geometry, "box").set("size", size_text)
+
+    link.insert(list(link).index(visuals[-1]) + 1, box_visual)
 
 
 def _update_collision_box_size(link: ET.Element, x_size: float, y_size: float, z_size: float) -> None:
@@ -392,8 +417,9 @@ def _apply_hand_link_scaling(input_root: ET.Element, hand_dims: dict[str, float]
         inertial = hand_link.find("inertial")
         if inertial is not None:
             _set_origin_xyz(inertial, [0.0, y_offset, 0.0])
-        for section_name in ("visual", "collision"):
-            section = hand_link.find(section_name)
+        sections = [hand_link.find("visual"), hand_link.find("collision")]
+        sections.extend(visual for visual in hand_link.findall("visual") if visual.find("geometry/box") is not None)
+        for section in sections:
             if section is not None:
                 _set_origin_xyz(section, [0.0, y_offset, 0.0])
 
