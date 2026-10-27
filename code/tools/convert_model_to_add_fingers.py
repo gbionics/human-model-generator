@@ -165,48 +165,6 @@ def _set_origin_xyz(parent: ET.Element, xyz: list[float]) -> None:
     origin.set("xyz", _format_xyz(xyz))
 
 
-def _update_box_size(link: ET.Element, x_size: float, y_size: float, z_size: float) -> None:
-    size_text = f"{x_size:.10g} {y_size:.10g} {z_size:.10g}"
-
-    collision = link.find("collision")
-    if collision is not None:
-        geometry = collision.find("geometry")
-        if geometry is not None:
-            box = geometry.find("box")
-            if box is None:
-                box = ET.SubElement(geometry, "box")
-            box.set("size", size_text)
-
-    _update_visual_box_size(link, size_text)
-
-
-def _update_visual_box_size(link: ET.Element, size_text: str) -> None:
-    visuals = [visual for visual in link.findall("visual") if visual.find("geometry") is not None]
-    if not visuals:
-        return
-
-    for visual in visuals:
-        box = visual.find("geometry/box")
-        if box is not None:
-            box.set("size", size_text)
-            return
-
-    # URDF geometry admits a single shape, so the box goes in its own visual
-    # instead of being appended next to an existing mesh.
-    source_visual = visuals[0]
-    box_visual = copy.deepcopy(source_visual)
-    source_name = source_visual.get("name")
-    if source_name:
-        box_visual.set("name", f"{source_name}_Box")
-
-    geometry = box_visual.find("geometry")
-    for child in list(geometry):
-        geometry.remove(child)
-    ET.SubElement(geometry, "box").set("size", size_text)
-
-    link.insert(list(link).index(visuals[-1]) + 1, box_visual)
-
-
 def _update_collision_box_size(link: ET.Element, x_size: float, y_size: float, z_size: float) -> None:
     size_text = f"{x_size:.10g} {y_size:.10g} {z_size:.10g}"
     collision = link.find("collision")
@@ -412,14 +370,17 @@ def _apply_hand_link_scaling(input_root: ET.Element, hand_dims: dict[str, float]
             continue
 
         y_offset = sign_y * palm_length / 2.0
-        _update_box_size(hand_link, hand_dims["X"], palm_length, hand_dims["Z"])
+        _update_collision_box_size(hand_link, hand_dims["X"], palm_length, hand_dims["Z"])
+        # Like the generator, visuals keep their mesh: only a box-only visual is resized.
+        visual_geometry = hand_link.find("visual/geometry")
+        if visual_geometry is not None and visual_geometry.find("mesh") is None and visual_geometry.find("box") is not None:
+            visual_geometry.find("box").set("size", hand_link.find("collision/geometry/box").get("size"))
 
         inertial = hand_link.find("inertial")
         if inertial is not None:
             _set_origin_xyz(inertial, [0.0, y_offset, 0.0])
-        sections = [hand_link.find("visual"), hand_link.find("collision")]
-        sections.extend(visual for visual in hand_link.findall("visual") if visual.find("geometry/box") is not None)
-        for section in sections:
+        for section_name in ("visual", "collision"):
+            section = hand_link.find(section_name)
             if section is not None:
                 _set_origin_xyz(section, [0.0, y_offset, 0.0])
 
