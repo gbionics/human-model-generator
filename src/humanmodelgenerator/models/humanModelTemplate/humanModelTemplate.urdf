@@ -1215,7 +1215,7 @@
         <parent link="RightShoulder_f2"/>
         <child link="RightUpperArm"/>
         <dynamics damping="0.1" friction="0.0"/>
-        <limit effort="30" velocity="1.0" lower="-0.785398" upper="3.14159" />
+        <limit effort="30" velocity="1.0" lower="-0.785398" upper="1.91986" />
         <axis xyz="0 0 1" />
     </joint>
 ##############################################################################
@@ -1413,7 +1413,7 @@
         <parent link="LeftShoulder_f2"/>
         <child link="LeftUpperArm"/>
         <dynamics damping="0.1" friction="0.0"/>
-        <limit effort="30" velocity="1.0" lower="-3.14159" upper="0.785398" />
+        <limit effort="30" velocity="1.0" lower="-1.91986" upper="0.785398" />
         <axis xyz="0 0 1" />
     </joint>
 ##############################################################################
