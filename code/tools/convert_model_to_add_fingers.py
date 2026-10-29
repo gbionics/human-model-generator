@@ -165,23 +165,6 @@ def _set_origin_xyz(parent: ET.Element, xyz: list[float]) -> None:
     origin.set("xyz", _format_xyz(xyz))
 
 
-def _update_box_size(link: ET.Element, x_size: float, y_size: float, z_size: float) -> None:
-    size_text = f"{x_size:.10g} {y_size:.10g} {z_size:.10g}"
-    for section_name in ("visual", "collision"):
-        section = link.find(section_name)
-        if section is None:
-            continue
-
-        geometry = section.find("geometry")
-        if geometry is None:
-            continue
-
-        box = geometry.find("box")
-        if box is None:
-            box = ET.SubElement(geometry, "box")
-        box.set("size", size_text)
-
-
 def _update_collision_box_size(link: ET.Element, x_size: float, y_size: float, z_size: float) -> None:
     size_text = f"{x_size:.10g} {y_size:.10g} {z_size:.10g}"
     collision = link.find("collision")
@@ -387,7 +370,11 @@ def _apply_hand_link_scaling(input_root: ET.Element, hand_dims: dict[str, float]
             continue
 
         y_offset = sign_y * palm_length / 2.0
-        _update_box_size(hand_link, hand_dims["X"], palm_length, hand_dims["Z"])
+        _update_collision_box_size(hand_link, hand_dims["X"], palm_length, hand_dims["Z"])
+        # Like the generator, visuals keep their mesh: only a box-only visual is resized.
+        visual_geometry = hand_link.find("visual/geometry")
+        if visual_geometry is not None and visual_geometry.find("mesh") is None and visual_geometry.find("box") is not None:
+            visual_geometry.find("box").set("size", hand_link.find("collision/geometry/box").get("size"))
 
         inertial = hand_link.find("inertial")
         if inertial is not None:
